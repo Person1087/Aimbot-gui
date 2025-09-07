@@ -1,0 +1,162 @@
+-- // Universal Aim Trainer GUI
+-- // Script made by ChatGPT
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+local LP = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Settings
+local FOV_DEGREES = 25
+local aimSpeed = 0.25 -- smoothness (0 = instant snap, higher = smoother)
+
+-- State
+local aimbotOn = false
+local enemyOnly = true
+local mode = "AimLock" -- "AimLock" or "PlayerLock"
+local currentTarget = nil
+
+-- === Notification ===
+StarterGui:SetCore("SendNotification", {
+	Title = "Notification";
+	Text = "Script made by ChatGPT";
+	Duration = 3;
+})
+
+-- === GUI ===
+local gui = Instance.new("ScreenGui")
+gui.Name = "AimTrainerGUI"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+-- Show/Hide Button
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.new(0,100,0,30)
+toggleBtn.Position = UDim2.new(0,20,0,20)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Text = "Show GUI"
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextScaled = true
+
+-- Frame
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 220, 0, 140)
+frame.Position = UDim2.new(0, 20, 0, 60)
+frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+frame.Visible = false
+
+local function makeBtn(text,pos)
+	local b = Instance.new("TextButton", frame)
+	b.Size = UDim2.new(1,-20,0,30)
+	b.Position = UDim2.new(0,10,0,pos)
+	b.Text = text
+	b.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.GothamBold
+	return b
+end
+
+local btnAimbot = makeBtn("Aimbot: OFF",10)
+local btnTeam   = makeBtn("Enemy Only: ON",45)
+local btnMode   = makeBtn("Mode: AimLock",80)
+
+-- Show/Hide Toggle
+local guiVisible = false
+toggleBtn.MouseButton1Click:Connect(function()
+	guiVisible = not guiVisible
+	frame.Visible = guiVisible
+	toggleBtn.Text = guiVisible and "Hide GUI" or "Show GUI"
+end)
+
+-- === Helpers ===
+local function isAlive(char)
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	return hum and hum.Health > 0
+end
+
+local function isEnemy(plr)
+	if not enemyOnly then return true end
+	if LP.Team and plr.Team then
+		return plr.Team ~= LP.Team
+	elseif LP.TeamColor and plr.TeamColor then
+		return plr.TeamColor ~= LP.TeamColor
+	else
+		return true
+	end
+end
+
+local function getHead(char)
+	return char and char:FindFirstChild("Head")
+end
+
+local function findClosestTarget()
+	local best, bestAng = nil, math.huge
+	local camPos, look = Camera.CFrame.Position, Camera.CFrame.LookVector
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr~=LP and plr.Character and isAlive(plr.Character) and isEnemy(plr) then
+			local head = getHead(plr.Character)
+			if head then
+				local dir = (head.Position - camPos).Unit
+				local ang = math.deg(math.acos(math.clamp(look:Dot(dir),-1,1)))
+				if ang < FOV_DEGREES and ang < bestAng then
+					best, bestAng = plr, ang
+				end
+			end
+		end
+	end
+	return best
+end
+
+-- === Buttons ===
+btnAimbot.MouseButton1Click:Connect(function()
+	aimbotOn = not aimbotOn
+	btnAimbot.Text = "Aimbot: "..(aimbotOn and "ON" or "OFF")
+end)
+
+btnTeam.MouseButton1Click:Connect(function()
+	enemyOnly = not enemyOnly
+	btnTeam.Text = "Enemy Only: "..(enemyOnly and "ON" or "OFF")
+end)
+
+btnMode.MouseButton1Click:Connect(function()
+	mode = (mode=="AimLock") and "PlayerLock" or "AimLock"
+	btnMode.Text = "Mode: "..mode
+	currentTarget = nil -- reset lock when switching mode
+end)
+
+-- === Main Loop ===
+RunService.RenderStepped:Connect(function()
+	if not aimbotOn then return end
+
+	if mode == "AimLock" then
+		-- Always update to closest
+		currentTarget = findClosestTarget()
+	else
+		-- PlayerLock: only update if current is gone/invalid
+		if not currentTarget or not currentTarget.Character or not isAlive(currentTarget.Character) or not isEnemy(currentTarget) then
+			currentTarget = findClosestTarget()
+		end
+	end
+
+	if not currentTarget or not currentTarget.Character then return end
+	local head = getHead(currentTarget.Character)
+	if not head then return end
+
+	if mode=="AimLock" then
+		-- Smooth camera aim
+		local newCFrame = CFrame.new(Camera.CFrame.Position, head.Position)
+		Camera.CFrame = Camera.CFrame:Lerp(newCFrame, aimSpeed)
+	else
+		-- PlayerLock: stay locked on current enemy until invalid
+		local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local flat = Vector3.new(head.Position.X, hrp.Position.Y, head.Position.Z)
+			local newCFrame = CFrame.lookAt(hrp.Position, flat)
+			hrp.CFrame = hrp.CFrame:Lerp(newCFrame, aimSpeed)
+		end
+	end
+end)
