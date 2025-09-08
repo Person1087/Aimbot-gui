@@ -1,162 +1,213 @@
--- // Universal Aim Trainer GUI
+-- // UNIVERSAL AIMBOT + ESP + HITBOX GUI
 -- // Script made by ChatGPT
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
-local CoreGui = game:GetService("CoreGui")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Settings
-local FOV_DEGREES = 25
-local aimSpeed = 0.25 -- smoothness (0 = instant snap, higher = smoother)
+-- // State
+local aimbotOn, enemyOnly, espOn, hitboxOn = false,false,false,false
+local hitboxSize = 10
+local mode = "AimLock"
+local smoothing = 0.15 -- smaller = faster snap
 
--- State
-local aimbotOn = false
-local enemyOnly = true
-local mode = "AimLock" -- "AimLock" or "PlayerLock"
-local currentTarget = nil
-
--- === Notification ===
+-- // Notify
 StarterGui:SetCore("SendNotification", {
-	Title = "Notification";
-	Text = "Script made by ChatGPT";
-	Duration = 3;
+	Title = "Loader",
+	Text = "Script made by ChatGPT",
+	Duration = 4
 })
 
--- === GUI ===
-local gui = Instance.new("ScreenGui")
-gui.Name = "AimTrainerGUI"
-gui.ResetOnSpawn = false
-gui.Parent = CoreGui
+-- // GUI
+local ScreenGui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
+ScreenGui.ResetOnSpawn = false
 
--- Show/Hide Button
-local toggleBtn = Instance.new("TextButton", gui)
-toggleBtn.Size = UDim2.new(0,100,0,30)
+local toggleBtn = Instance.new("TextButton", ScreenGui)
+toggleBtn.Size = UDim2.new(0,120,0,40)
 toggleBtn.Position = UDim2.new(0,20,0,20)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-toggleBtn.TextColor3 = Color3.new(1,1,1)
 toggleBtn.Text = "Show GUI"
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.TextScaled = true
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+toggleBtn.TextColor3 = Color3.new(1,1,1)
 
--- Frame
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 220, 0, 140)
-frame.Position = UDim2.new(0, 20, 0, 60)
-frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+local frame = Instance.new("ScrollingFrame", ScreenGui)
+frame.Size = UDim2.new(0,700,0,70)
+frame.Position = UDim2.new(0,20,0,70)
+frame.CanvasSize = UDim2.new(0,700,0,0)
+frame.ScrollBarThickness = 4
 frame.Visible = false
 
-local function makeBtn(text,pos)
+local function makeToggle(name,pos,callback)
 	local b = Instance.new("TextButton", frame)
-	b.Size = UDim2.new(1,-20,0,30)
-	b.Position = UDim2.new(0,10,0,pos)
-	b.Text = text
-	b.BackgroundColor3 = Color3.fromRGB(60,60,60)
-	b.TextColor3 = Color3.new(1,1,1)
+	b.Position = UDim2.new(0,(pos-1)*110,0,5)
+	b.Size = UDim2.new(0,100,0,40)
+	b.Text = name
 	b.Font = Enum.Font.GothamBold
-	return b
+	b.TextScaled = true
+	b.AutoButtonColor = false
+	b.BackgroundColor3 = Color3.fromRGB(200,0,0)
+	b.TextColor3 = Color3.new(1,1,1)
+
+	local c = Instance.new("UICorner", b)
+	c.CornerRadius = UDim.new(0,6)
+
+	local state = false
+	b.MouseButton1Click:Connect(function()
+		state = not state
+		b.BackgroundColor3 = state and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,0,0)
+		callback(state)
+	end)
 end
 
-local btnAimbot = makeBtn("Aimbot: OFF",10)
-local btnTeam   = makeBtn("Enemy Only: ON",45)
-local btnMode   = makeBtn("Mode: AimLock",80)
+-- Toggles
+makeToggle("Aimbot",1,function(v) aimbotOn = v end)
+makeToggle("EnemyOnly",2,function(v) enemyOnly = v end)
+makeToggle("ESP",3,function(v) espOn = v end)
+makeToggle("Hitbox",4,function(v) hitboxOn = v end)
 
--- Show/Hide Toggle
-local guiVisible = false
-toggleBtn.MouseButton1Click:Connect(function()
-	guiVisible = not guiVisible
-	frame.Visible = guiVisible
-	toggleBtn.Text = guiVisible and "Hide GUI" or "Show GUI"
+-- Mode button
+local modeBtn = Instance.new("TextButton", frame)
+modeBtn.Position = UDim2.new(0,(5-1)*110,0,5)
+modeBtn.Size = UDim2.new(0,100,0,40)
+modeBtn.Text = "Mode: AimLock"
+modeBtn.Font = Enum.Font.GothamBold
+modeBtn.TextScaled = true
+modeBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+modeBtn.TextColor3 = Color3.new(1,1,1)
+local c = Instance.new("UICorner", modeBtn)
+c.CornerRadius = UDim.new(0,6)
+
+modeBtn.MouseButton1Click:Connect(function()
+	mode = (mode=="AimLock") and "PlayerLock" or "AimLock"
+	modeBtn.Text = "Mode: "..mode
 end)
 
--- === Helpers ===
+-- Hitbox size input
+local box = Instance.new("TextBox", frame)
+box.Position = UDim2.new(0,(6-1)*110,0,5)
+box.Size = UDim2.new(0,100,0,40)
+box.PlaceholderText = "Hitbox Size"
+box.Text = "10"
+box.TextScaled = true
+box.BackgroundColor3 = Color3.fromRGB(60,60,60)
+box.TextColor3 = Color3.new(1,1,1)
+local cc = Instance.new("UICorner", box)
+cc.CornerRadius = UDim.new(0,6)
+
+box.FocusLost:Connect(function()
+	local n = tonumber(box.Text)
+	if n then hitboxSize = n end
+end)
+
+-- Show/hide gui
+toggleBtn.MouseButton1Click:Connect(function()
+	frame.Visible = not frame.Visible
+	toggleBtn.Text = frame.Visible and "Hide GUI" or "Show GUI"
+end)
+
+-- Utils
 local function isAlive(char)
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	return hum and hum.Health > 0
+	return char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0
+end
+local function isEnemyPlayer(plr)
+	if not enemyOnly then return true end
+	if LP.Team and plr.Team then return LP.Team ~= plr.Team end
+	return true
 end
 
-local function isEnemy(plr)
-	if not enemyOnly then return true end
-	if LP.Team and plr.Team then
-		return plr.Team ~= LP.Team
-	elseif LP.TeamColor and plr.TeamColor then
-		return plr.TeamColor ~= LP.TeamColor
-	else
-		return true
+-- ESP
+local espCache = {}
+local function addESP(plr)
+	if espCache[plr] then return end
+	if not plr.Character then return end
+	local highlight = Instance.new("Highlight")
+	highlight.Adornee = plr.Character
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.FillTransparency = 0.7
+	highlight.OutlineColor = Color3.fromRGB(255,0,0)
+	highlight.Parent = plr.Character
+	espCache[plr] = highlight
+end
+local function removeESP(plr)
+	if espCache[plr] then
+		espCache[plr]:Destroy()
+		espCache[plr] = nil
 	end
 end
 
-local function getHead(char)
-	return char and char:FindFirstChild("Head")
+-- Lag-free Hitbox (BoxHandleAdornment)
+local hbCache = {}
+local function expandHitbox(plr)
+	if not plr.Character then return end
+	local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		if hbCache[plr] then
+			hbCache[plr].Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+			hbCache[plr].Adornee = hrp
+			return
+		end
+		local box = Instance.new("BoxHandleAdornment")
+		box.Adornee = hrp
+		box.AlwaysOnTop = true
+		box.ZIndex = 10
+		box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+		box.Transparency = 0.5
+		box.Color3 = Color3.fromRGB(0,0,255)
+		box.Parent = hrp
+		hbCache[plr] = box
+	end
 end
 
-local function findClosestTarget()
-	local best, bestAng = nil, math.huge
-	local camPos, look = Camera.CFrame.Position, Camera.CFrame.LookVector
+local function resetHitbox(plr)
+	if hbCache[plr] then
+		hbCache[plr]:Destroy()
+		hbCache[plr] = nil
+	end
+end
+
+-- Aimbot + ESP + Hitbox Main Loop
+RunService.RenderStepped:Connect(function()
 	for _,plr in ipairs(Players:GetPlayers()) do
-		if plr~=LP and plr.Character and isAlive(plr.Character) and isEnemy(plr) then
-			local head = getHead(plr.Character)
-			if head then
-				local dir = (head.Position - camPos).Unit
-				local ang = math.deg(math.acos(math.clamp(look:Dot(dir),-1,1)))
-				if ang < FOV_DEGREES and ang < bestAng then
-					best, bestAng = plr, ang
-				end
+		if plr ~= LP then
+			if espOn and plr.Character and isEnemyPlayer(plr) then
+				addESP(plr)
+			else
+				removeESP(plr)
+			end
+
+			if hitboxOn and plr.Character and isEnemyPlayer(plr) then
+				expandHitbox(plr)
+			else
+				resetHitbox(plr)
 			end
 		end
 	end
-	return best
-end
 
--- === Buttons ===
-btnAimbot.MouseButton1Click:Connect(function()
-	aimbotOn = not aimbotOn
-	btnAimbot.Text = "Aimbot: "..(aimbotOn and "ON" or "OFF")
-end)
-
-btnTeam.MouseButton1Click:Connect(function()
-	enemyOnly = not enemyOnly
-	btnTeam.Text = "Enemy Only: "..(enemyOnly and "ON" or "OFF")
-end)
-
-btnMode.MouseButton1Click:Connect(function()
-	mode = (mode=="AimLock") and "PlayerLock" or "AimLock"
-	btnMode.Text = "Mode: "..mode
-	currentTarget = nil -- reset lock when switching mode
-end)
-
--- === Main Loop ===
-RunService.RenderStepped:Connect(function()
-	if not aimbotOn then return end
-
-	if mode == "AimLock" then
-		-- Always update to closest
-		currentTarget = findClosestTarget()
-	else
-		-- PlayerLock: only update if current is gone/invalid
-		if not currentTarget or not currentTarget.Character or not isAlive(currentTarget.Character) or not isEnemy(currentTarget) then
-			currentTarget = findClosestTarget()
+	if aimbotOn and LP.Character and isAlive(LP.Character) then
+		local nearest, dist = nil, math.huge
+		for _,plr in ipairs(Players:GetPlayers()) do
+			if plr~=LP and plr.Character and isAlive(plr.Character) and isEnemyPlayer(plr) then
+				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+				if hrp and LP.Character:FindFirstChild("HumanoidRootPart") then
+					local d = (hrp.Position - LP.Character.HumanoidRootPart.Position).Magnitude
+					if d < dist then
+						dist = d
+						nearest = hrp
+					end
+				end
+			end
 		end
-	end
 
-	if not currentTarget or not currentTarget.Character then return end
-	local head = getHead(currentTarget.Character)
-	if not head then return end
-
-	if mode=="AimLock" then
-		-- Smooth camera aim
-		local newCFrame = CFrame.new(Camera.CFrame.Position, head.Position)
-		Camera.CFrame = Camera.CFrame:Lerp(newCFrame, aimSpeed)
-	else
-		-- PlayerLock: stay locked on current enemy until invalid
-		local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-		if hrp then
-			local flat = Vector3.new(head.Position.X, hrp.Position.Y, head.Position.Z)
-			local newCFrame = CFrame.lookAt(hrp.Position, flat)
-			hrp.CFrame = hrp.CFrame:Lerp(newCFrame, aimSpeed)
+		if nearest then
+			if mode=="AimLock" then
+				local newCF = CFrame.new(Camera.CFrame.Position, nearest.Position)
+				Camera.CFrame = Camera.CFrame:Lerp(newCF, smoothing)
+			elseif mode=="PlayerLock" and LP.Character:FindFirstChild("HumanoidRootPart") then
+				local root = LP.Character.HumanoidRootPart
+				local newCF = CFrame.new(root.Position, Vector3.new(nearest.Position.X, root.Position.Y, nearest.Position.Z))
+				root.CFrame = root.CFrame:Lerp(newCF, smoothing)
+			end
 		end
 	end
 end)
