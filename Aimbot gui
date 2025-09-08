@@ -1,4 +1,4 @@
--- // UNIVERSAL AIMBOT + ESP + DAMAGEABLE HITBOX GUI (ANTI-CHEAT)
+-- // UNIVERSAL AIMBOT + PLAYERLOCK + ESP + HITBOX GUI
 -- // Script made by ChatGPT
 
 local Players = game:GetService("Players")
@@ -8,7 +8,7 @@ local UIS = game:GetService("UserInputService")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- // Settings
+-- Settings
 local aimbotOn, enemyOnly, espOn, hitboxOn = false,false,false,false
 local hitboxSize = 10
 local mode = "AimLock"
@@ -40,7 +40,7 @@ frame.CanvasSize = UDim2.new(0,700,0,0)
 frame.ScrollBarThickness = 4
 frame.Visible = false
 
--- Toggle Button Function
+-- Toggle button creator
 local function makeToggle(name,pos,callback)
     local b = Instance.new("TextButton", frame)
     b.Position = UDim2.new(0,(pos-1)*110,0,5)
@@ -62,13 +62,13 @@ local function makeToggle(name,pos,callback)
     end)
 end
 
--- Create Toggles
+-- Create toggles
 makeToggle("Aimbot",1,function(v) aimbotOn=v end)
 makeToggle("EnemyOnly",2,function(v) enemyOnly=v end)
 makeToggle("ESP",3,function(v) espOn=v end)
 makeToggle("Hitbox",4,function(v) hitboxOn=v end)
 
--- Mode Button
+-- Mode button
 local modeBtn = Instance.new("TextButton", frame)
 modeBtn.Position = UDim2.new(0,(5-1)*110,0,5)
 modeBtn.Size = UDim2.new(0,100,0,40)
@@ -136,46 +136,57 @@ local function removeESP(plr)
     end
 end
 
--- Lag-free hitboxes
+-- Hitbox expander with visible blue box
 local hbCache = {}
 local function expandHitbox(plr)
     if not plr.Character then return end
     local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        if hbCache[plr] then
-            hbCache[plr].Size=Vector3.new(hitboxSize,hitboxSize,hitboxSize)
-            return
-        end
-        local box=Instance.new("BoxHandleAdornment")
-        box.Adornee=hrp
-        box.AlwaysOnTop=true
-        box.ZIndex=10
-        box.Size=Vector3.new(hitboxSize,hitboxSize,hitboxSize)
-        box.Transparency=0.5
-        box.Color3=Color3.fromRGB(0,0,255)
-        box.Parent=hrp
-        hbCache[plr]=box
+    if not hrp then return end
+
+    -- Reset old
+    if hbCache[plr] then
+        hbCache[plr].Adornment:Destroy()
+        hbCache[plr] = nil
     end
+
+    -- Expand actual hitbox
+    hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+
+    -- Visible blue box
+    local adorn = Instance.new("BoxHandleAdornment")
+    adorn.Adornee = hrp
+    adorn.AlwaysOnTop = true
+    adorn.Size = hrp.Size
+    adorn.Color3 = Color3.fromRGB(0,0,255)
+    adorn.Transparency = 0.5
+    adorn.ZIndex = 10
+    adorn.Parent = hrp
+
+    -- Track in cache
+    hbCache[plr] = {Adornment = adorn}
 end
+
 local function resetHitbox(plr)
     if hbCache[plr] then
-        hbCache[plr]:Destroy()
-        hbCache[plr]=nil
+        hbCache[plr].Adornment:Destroy()
+        hbCache[plr] = nil
+        -- Reset actual hitbox
+        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            plr.Character.HumanoidRootPart.Size = Vector3.new(2,2,1)
+        end
     end
 end
 
--- Soft-lock aimbot
+-- Aimbot / PlayerLock
 local currentTarget = nil
 RunService.RenderStepped:Connect(function()
-    -- ESP & hitbox
     for _,plr in ipairs(Players:GetPlayers()) do
-        if plr~=LP then
+        if plr ~= LP then
             if espOn and plr.Character and isEnemyPlayer(plr) then addESP(plr) else removeESP(plr) end
             if hitboxOn and plr.Character and isEnemyPlayer(plr) then expandHitbox(plr) else resetHitbox(plr) end
         end
     end
 
-    -- Soft-lock aimbot
     if aimbotOn and LP.Character and isAlive(LP.Character) then
         local camDir = Camera.CFrame.LookVector
         local candidates = {}
