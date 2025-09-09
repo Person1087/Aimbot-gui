@@ -136,44 +136,33 @@ local function removeESP(plr)
     end
 end
 
--- Hitbox expander with visible blue box
+-- ✅ FIXED NON-LAGGY HITBOX EXPANDER
 local hbCache = {}
 local function expandHitbox(plr)
     if not plr.Character then return end
     local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Reset old
     if hbCache[plr] then
-        hbCache[plr].Adornment:Destroy()
+        hbCache[plr]:Destroy()
         hbCache[plr] = nil
     end
 
-    -- Expand actual hitbox
-    hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-
-    -- Visible blue box
     local adorn = Instance.new("BoxHandleAdornment")
     adorn.Adornee = hrp
     adorn.AlwaysOnTop = true
-    adorn.Size = hrp.Size
+    adorn.ZIndex = 10
+    adorn.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
     adorn.Color3 = Color3.fromRGB(0,0,255)
     adorn.Transparency = 0.5
-    adorn.ZIndex = 10
     adorn.Parent = hrp
-
-    -- Track in cache
-    hbCache[plr] = {Adornment = adorn}
+    hbCache[plr] = adorn
 end
 
 local function resetHitbox(plr)
     if hbCache[plr] then
-        hbCache[plr].Adornment:Destroy()
+        hbCache[plr]:Destroy()
         hbCache[plr] = nil
-        -- Reset actual hitbox
-        if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            plr.Character.HumanoidRootPart.Size = Vector3.new(2,2,1)
-        end
     end
 end
 
