@@ -1,0 +1,146 @@
+--// TpWalk GUI Script with Custom Popups
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "TpWalkGui"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local enabled = false
+local speed = nil
+local humanoid, root
+
+-- Show/Hide Button (TOP of screen)
+local toggleGUI = Instance.new("TextButton")
+toggleGUI.Size = UDim2.new(0, 120, 0, 40)
+toggleGUI.Position = UDim2.new(0.5, -60, 0, 5)
+toggleGUI.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggleGUI.Text = "Hide GUI"
+toggleGUI.TextColor3 = Color3.new(1,1,1)
+toggleGUI.Parent = gui
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Position = UDim2.new(0.5, -100, 0.2, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.Visible = true
+frame.Parent = gui
+
+-- TpWalk Toggle Button
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0, 180, 0, 40)
+toggle.Position = UDim2.new(0, 10, 0, 10)
+toggle.BackgroundColor3 = Color3.fromRGB(200,0,0)
+toggle.Text = "Disabled"
+toggle.TextColor3 = Color3.new(1,1,1)
+toggle.Parent = frame
+
+-- Speed Box
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0, 180, 0, 40)
+speedBox.Position = UDim2.new(0, 10, 0, 60)
+speedBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
+speedBox.Text = ""
+speedBox.PlaceholderText = "Enter Speed"
+speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.Parent = frame
+
+-- Show/Hide GUI Button Logic
+toggleGUI.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+    toggleGUI.Text = frame.Visible and "Hide GUI" or "Show GUI"
+end)
+
+-- TpWalk Enable/Disable Logic
+toggle.MouseButton1Click:Connect(function()
+    enabled = not enabled
+    if speedBox.Text == "" then
+        speed = nil -- do nothing if no number typed
+    else
+        speed = tonumber(speedBox.Text)
+    end
+    toggle.Text = enabled and "Enabled" or "Disabled"
+    toggle.BackgroundColor3 = enabled and Color3.fromRGB(0,200,0) or Color3.fromRGB(200,0,0)
+end)
+
+-- Update speed when typing
+speedBox.FocusLost:Connect(function()
+    local val = tonumber(speedBox.Text)
+    speed = val or nil
+end)
+
+-- Update humanoid & root when respawn
+local function setupChar(char)
+    humanoid = char:WaitForChild("Humanoid")
+    root = char:WaitForChild("HumanoidRootPart")
+end
+setupChar(player.Character or player.CharacterAdded:Wait())
+player.CharacterAdded:Connect(setupChar)
+
+-- TpWalk Logic
+RunService.Heartbeat:Connect(function()
+    if enabled and humanoid and root and humanoid.MoveDirection.Magnitude > 0 and speed then
+        if humanoid.Sit then humanoid.Sit = false end
+        humanoid.PlatformStand = false
+        root.CFrame = root.CFrame + humanoid.MoveDirection * speed
+    end
+end)
+
+-- 🔔 Custom Popup Creator
+local function createPopup(title, text, buttons)
+    local popup = Instance.new("Frame")
+    popup.Size = UDim2.new(0, 300, 0, 150)
+    popup.Position = UDim2.new(0.5, -150, 0.5, -75)
+    popup.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    popup.Parent = gui
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 40)
+    titleLabel.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.new(1,1,1)
+    titleLabel.Parent = popup
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, -20, 0, 50)
+    textLabel.Position = UDim2.new(0, 10, 0, 50)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextWrapped = true
+    textLabel.Text = text
+    textLabel.TextColor3 = Color3.new(1,1,1)
+    textLabel.Parent = popup
+
+    local btnY = 110
+    for _, data in ipairs(buttons) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.5, -15, 0, 30)
+        btn.Position = UDim2.new(data.pos, 5, 0, btnY)
+        btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+        btn.Text = data.text
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.Parent = popup
+        btn.MouseButton1Click:Connect(function()
+            popup:Destroy()
+            if data.callback then data.callback() end
+        end)
+    end
+end
+
+-- First Popup
+createPopup("Question", "Will you follow my TikTok account?", {
+    {text="Yes", pos=0, callback=function()
+        createPopup("Good boy", "😂", {
+            {text="fuck you bro", pos=0.25}
+        })
+    end},
+    {text="No", pos=0.5, callback=function()
+        createPopup("Message", "fuck you", {
+            {text="Close", pos=0.25}
+        })
+    end}
+})
